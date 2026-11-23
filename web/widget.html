@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17131e">
+  <title>Chat with Zukun Academy</title>
+  <style>
+    :root { color-scheme: light; --ink: #251d2e; --muted: #82788d; --line: #ece6f1; --brand: linear-gradient(112deg, #2816df, #7600e8 56%, #b500e8); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #fff; }
+    .widget { display: flex; width: 100%; height: 100%; flex-direction: column; overflow: hidden; border: 1px solid #e9e1ef; border-radius: 20px; color: var(--ink); background: #fff; box-shadow: 0 18px 55px #24113f26; }
+    .head { display: flex; min-height: 66px; align-items: center; gap: 10px; padding: 11px 14px; color: #fff; background: linear-gradient(120deg, #17131e, #291236); }
+    .logo { flex: 0 0 39px; width: 39px; height: 39px; border: 1px solid #ffffff32; border-radius: 50%; background: #fff; object-fit: cover; }
+    .head-copy { min-width: 0; flex: 1; }
+    .head-copy strong { display: block; overflow: hidden; font-size: 13px; font-weight: 760; text-overflow: ellipsis; white-space: nowrap; }
+    .head-copy small { display: flex; align-items: center; gap: 6px; margin-top: 4px; color: #c7bbd0; font-size: 10px; }
+    .online { width: 7px; height: 7px; border-radius: 50%; background: #58d69c; box-shadow: 0 0 0 3px #58d69c25; }
+    .head-button { display: grid; flex: 0 0 34px; width: 34px; height: 34px; place-items: center; border: 1px solid #ffffff22; border-radius: 10px; color: #fff; background: #ffffff10; font: inherit; font-size: 19px; cursor: pointer; }
+    .head-button:hover { background: #ffffff20; }
+    .messages { display: flex; min-height: 0; flex: 1; flex-direction: column; gap: 12px; overflow-y: auto; padding: 15px 13px 12px; background: linear-gradient(150deg, #fcfbfe, #fff 58%, #faf7fd); scroll-behavior: smooth; }
+    .welcome, .message { display: flex; gap: 8px; align-items: flex-start; }
+    .message { width: 100%; scroll-margin-bottom: 12px; }
+    .message.user { justify-content: flex-end; }
+    .bot-mark { flex: 0 0 27px; width: 27px; height: 27px; border: 1px solid #e7ddf0; border-radius: 50%; background: white; object-fit: cover; }
+    .bubble { max-width: 88%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 4px 14px 14px; color: #42364d; background: #fff; box-shadow: 0 3px 12px #26143d08; font-size: 12px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+    .bubble a { color: #6723b0; text-decoration: underline; text-underline-offset: 2px; }
+    .bubble strong { color: #30233c; font-weight: 750; }
+    .bubble h3 { margin: 10px 0 5px; color: #30233c; font-size: 12px; line-height: 1.4; font-weight: 780; }
+    .bubble p { margin: 0 0 8px; }
+    .bubble p:last-child { margin-bottom: 0; }
+    .bubble ul { margin: 4px 0; padding-left: 18px; }
+    .bubble li { padding-left: 2px; margin: 3px 0; }
+    .message.user .bubble { border: 0; border-radius: 14px 4px 14px 14px; color: white; background: var(--brand); }
+    .message.error .bubble { color: #9d382d; background: #fff8f6; border-color: #f1d4ce; }
+    .typing { color: var(--muted); }
+    .quick { display: grid; gap: 7px; margin: 0 0 2px 35px; }
+    .quick button { padding: 8px 10px; border: 1px solid #e9e1f0; border-radius: 11px; color: #574465; text-align: left; background: #fff; font: inherit; font-size: 11px; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
+    .quick button:hover { border-color: #c2a0df; background: #fcf8ff; }
+    .contact { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 12px; padding: 8px 10px; border-top: 1px solid #f0ecf3; background: #fff; }
+    .contact a { color: #766b82; font-size: 10px; text-decoration: none; }
+    .contact a:hover { color: #6e1ab5; text-decoration: underline; }
+    .composer-wrap { padding: 9px 11px 10px; border-top: 1px solid #eee8f2; background: #fff; }
+    .composer { display: flex; gap: 8px; align-items: flex-end; padding: 7px; border: 1px solid #e6dfea; border-radius: 15px; background: #fff; box-shadow: 0 5px 18px #3018490c; }
+    .composer:focus-within { border-color: #b189e6; box-shadow: 0 0 0 3px #a13be914; }
+    textarea { display: block; min-width: 0; min-height: 38px; max-height: 105px; flex: 1; resize: none; padding: 10px 8px; border: 0; outline: 0; color: var(--ink); background: transparent; font: inherit; font-size: 12px; line-height: 1.45; }
+    textarea::placeholder { color: #9b91a4; }
+    .send { display: grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; border: 0; border-radius: 12px; color: #fff; background: var(--brand); cursor: pointer; }
+    .send:disabled { cursor: wait; opacity: .5; }
+    .send svg { width: 17px; height: 17px; }
+    button:focus-visible { outline: 3px solid #b692e5; outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <section class="widget" aria-label="Zukun Academy chat">
+    <header class="head">
+      <img class="logo" src="/assets/zukun-logo.png" alt="">
+      <div class="head-copy"><strong>Zukun Academy</strong><small><span class="online" aria-hidden="true"></span>Student assistant</small></div>
+      <button class="head-button" id="new-chat" type="button" title="Start a new chat" aria-label="Start a new chat">↻</button>
+      <button class="head-button" id="close-chat" type="button" title="Close chat" aria-label="Close chat">×</button>
+    </header>
+    <div class="messages" id="messages" role="log" aria-live="polite">
+      <div class="welcome"><img class="bot-mark" src="/assets/zukun-logo.png" alt=""><div class="bubble">Hi! I can help with Zukun Academy courses, fees, and enrollment. What would you like to know?</div></div>
+      <div class="quick" id="quick">
+        <button type="button" data-question="What courses are available at Zukun Academy? Give me a short overview of each.">Explore all courses</button>
+        <button type="button" data-question="What are the course fees and payment options?">Fees and payment options</button>
+        <button type="button" data-question="How can I enroll, and what class formats are available?">Enrollment and class formats</button>
+      </div>
+    </div>
+    <div class="contact" aria-label="Contact Zukun Academy">
+      <a href="mailto:info@zukunacademy.com">Email admissions</a>
+      <a href="tel:+918925954490">Call +91 89259 54490</a>
+      <a href="https://www.google.com/maps/search/?api=1&amp;query=No%201%20Second%20Floor%204th%20Main%20Road%20Kasturba%20Nagar%20Adyar%20Chennai%20600020" target="_blank" rel="noopener noreferrer" title="No. 1, Second Floor, 4th Main Road, Kasturba Nagar, Adyar, Chennai 600020">Adyar, Chennai</a>
+    </div>
+    <div class="composer-wrap">
+      <form class="composer" id="chat-form">
+        <textarea id="question" maxlength="1500" rows="1" placeholder="Ask a question..." aria-label="Your question"></textarea>
+        <button class="send" id="send" type="submit" aria-label="Send question" title="Send question"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h13M13 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </form>
+    </div>
+  </section>
+  <script>
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('question');
+    const send = document.getElementById('send');
+    const messages = document.getElementById('messages');
+    const newChat = document.getElementById('new-chat');
+    const closeChat = document.getElementById('close-chat');
+    const welcome = messages.querySelector('.welcome').cloneNode(true);
+    const quickPrompts = messages.querySelector('#quick').cloneNode(true);
+
+    function formatAnswer(text) {
+      const escaped = text.replace(/[&<>\"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[character]);
+      const linked = escaped.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      const lines = linked.trim().split(/\r?\n/);
+      const output = [];
+      let list = [];
+      let paragraph = [];
+      const flushParagraph = () => { if (paragraph.length) { output.push(`<p>${paragraph.join(' ')}</p>`); paragraph = []; } };
+      const flushList = () => { if (list.length) { flushParagraph(); output.push(`<ul>${list.map(item => `<li>${item}</li>`).join('')}</ul>`); list = []; } };
+      for (const line of lines) {
+        const item = line.match(/^\s*[*-]\s+(.+)$/);
+        const heading = line.match(/^\s*#{1,3}\s+(.+)$/);
+        if (item) { flushParagraph(); list.push(item[1]); }
+        else if (heading) { flushList(); flushParagraph(); output.push(`<h3>${heading[1]}</h3>`); }
+        else if (line.trim()) { flushList(); paragraph.push(line.trim()); }
+        else { flushList(); flushParagraph(); }
+      }
+      flushList(); flushParagraph();
+      return output.join('');
+    }
+
+    function scrollToLatest() { requestAnimationFrame(() => { messages.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }); }
+
+    function addMessage(text, role, isError = false) {
+      const row = document.createElement('div');
+      row.className = `message ${role}${isError ? ' error' : ''}`;
+      if (role === 'assistant') {
+        const mark = document.createElement('img');
+        mark.className = 'bot-mark'; mark.src = '/assets/zukun-logo.png'; mark.alt = '';
+        row.appendChild(mark);
+      }
+      const bubble = document.createElement('div'); bubble.className = 'bubble';
+      if (role === 'assistant' && !isError) bubble.innerHTML = formatAnswer(text); else bubble.textContent = text;
+      row.appendChild(bubble); messages.appendChild(row); scrollToLatest();
+      return row;
+    }
+
+    async function ask(question) {
+      const clean = question.trim();
+      if (!clean || send.disabled) return;
+      const activeQuick = messages.querySelector('#quick');
+      if (activeQuick) activeQuick.hidden = true;
+      addMessage(clean, 'user'); input.value = ''; input.style.height = '38px'; send.disabled = true;
+      const pending = addMessage('Looking through academy information...', 'assistant'); pending.querySelector('.bubble').classList.add('typing');
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), 50_000);
+      try {
+        const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: clean }), signal: controller.signal });
+        const payload = await response.json(); pending.remove();
+        if (!response.ok) throw new Error(payload.error || 'Something went wrong. Please try again.');
+        addMessage(payload.answer, 'assistant');
+      } catch (error) {
+        pending.remove();
+        const message = error.name === 'AbortError'
+          ? 'This request timed out. The chat is ready again; please try once more.'
+          : (error.message || 'Could not reach the chat server. Please check that the chatbot server is running.');
+        addMessage(message, 'assistant', true);
+      } finally { window.clearTimeout(timeoutId); send.disabled = false; input.focus({ preventScroll: true }); }
+    }
+
+    form.addEventListener('submit', event => { event.preventDefault(); ask(input.value); });
+    input.addEventListener('input', () => { input.style.height = '38px'; input.style.height = `${Math.min(input.scrollHeight, 105)}px`; });
+    input.addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); form.requestSubmit(); } });
+    messages.addEventListener('click', event => { const button = event.target.closest('button[data-question]'); if (button) ask(button.dataset.question); });
+    newChat.addEventListener('click', () => { messages.replaceChildren(welcome.cloneNode(true), quickPrompts.cloneNode(true)); input.value = ''; input.style.height = '38px'; input.focus(); });
+    closeChat.addEventListener('click', () => window.parent.postMessage({ type: 'zukun-widget-close' }, '*'));
+  </script>
+</body>
+</html>

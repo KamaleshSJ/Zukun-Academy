@@ -7,7 +7,9 @@ A starter project for answering student questions from Zukun Academy's informati
 - `knowledge_base/academy_faq.md` - course names supplied so far and a list of academy details the chatbot still needs.
 - `knowledge_base/courses.md` - course topics summarized from the public Zukun course pages, with notes where page titles differ from the supplied course list.
 - `bot.py` - retrieval augmented generation chatbot with command-line and local browser modes. It uses Gemini embeddings to retrieve relevant passages, then asks a Gemini model to answer from those passages.
-- `web/index.html` - the browser chat interface served by the local app.
+- `web/index.html` - a local website-style preview with the floating chat launcher.
+- `web/widget.html` - the compact chat panel shown in the pop-up.
+- `web/assets/widget-embed.js` - creates the floating launcher and embeds the chat panel on a host website.
 - `web/assets/zukun-logo.png` - the supplied academy logo.
 - `web/assets/zukun-cover-full.png` - the full-bleed cover used by the UI, with the empty footer removed and the academy artwork extended to the bottom edge. The earlier clean version and original screenshot remain in the assets folder as backups.
 - `.env.example` - required API key setting.
@@ -43,6 +45,16 @@ A starter project for answering student questions from Zukun Academy's informati
    It opens `http://127.0.0.1:8000` in your browser. Keep the terminal open while chatting; press `Ctrl+C` there to stop the server. If port 8000 is already in use, choose another port with `python bot.py --web --port 8001`.
 
    To use the original terminal chat instead, run `python bot.py`.
+
+## Add the chat widget to Zukun's website
+
+The local preview demonstrates the launcher, but it does not change the live Zukun website. First deploy this chatbot app to a public HTTPS host so the website can reach the widget and `/api/chat`. Then add this script near the end of the Zukun site page or through its site-wide custom-code area, replacing the host with the deployed chatbot address:
+
+```html
+<script src="https://YOUR-CHATBOT-HOST/assets/widget-embed.js" defer></script>
+```
+
+The script adds the small floating Zukun button. Clicking it opens the chat panel; the panel sends questions to the chatbot host. Do not use `localhost` in the live website embed because visitors' browsers would look for a server on their own devices.
 
 The bot builds embeddings on the first run and stores them in `.rag_cache.json`. It detects changed knowledge-base text and refreshes the embeddings when you start it again. To force a rebuild manually:
 
