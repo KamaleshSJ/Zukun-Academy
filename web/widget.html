@@ -31,6 +31,10 @@
     .bubble p:last-child { margin-bottom: 0; }
     .bubble ul { margin: 4px 0; padding-left: 18px; }
     .bubble li { padding-left: 2px; margin: 3px 0; }
+    .answer-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin: 2px 0 0 35px; color: #82788d; font-size: 10px; }
+    .answer-sources span { font-weight: 650; }
+    .answer-sources a { padding: 4px 7px; border: 1px solid #e8def1; border-radius: 999px; color: #6824a9; background: #fff; text-decoration: none; }
+    .answer-sources a:hover { border-color: #c2a0df; background: #fcf8ff; text-decoration: underline; }
     .message.user .bubble { border: 0; border-radius: 14px 4px 14px 14px; color: white; background: var(--brand); }
     .message.error .bubble { color: #9d382d; background: #fff8f6; border-color: #f1d4ce; }
     .typing { color: var(--muted); }
@@ -112,7 +116,7 @@
 
     function scrollToLatest() { requestAnimationFrame(() => { messages.lastElementChild?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }); }
 
-    function addMessage(text, role, isError = false) {
+    function addMessage(text, role, isError = false, sources = []) {
       const row = document.createElement('div');
       row.className = `message ${role}${isError ? ' error' : ''}`;
       if (role === 'assistant') {
@@ -123,6 +127,17 @@
       const bubble = document.createElement('div'); bubble.className = 'bubble';
       if (role === 'assistant' && !isError) bubble.innerHTML = formatAnswer(text); else bubble.textContent = text;
       row.appendChild(bubble); messages.appendChild(row); scrollToLatest();
+      if (role === 'assistant' && !isError && sources.length) {
+        const sourceRow = document.createElement('div'); sourceRow.className = 'answer-sources';
+        const label = document.createElement('span'); label.textContent = 'Sources:'; sourceRow.appendChild(label);
+        for (const source of sources) {
+          if (!source || !/^https:\/\/zukun\.in\//.test(source.url || '')) continue;
+          const link = document.createElement('a'); link.href = source.url; link.target = '_blank';
+          link.rel = 'noopener noreferrer'; link.textContent = source.title || 'Zukun Academy';
+          sourceRow.appendChild(link);
+        }
+        if (sourceRow.children.length > 1) { messages.appendChild(sourceRow); scrollToLatest(); }
+      }
       return row;
     }
 
@@ -139,7 +154,7 @@
         const response = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: clean }), signal: controller.signal });
         const payload = await response.json(); pending.remove();
         if (!response.ok) throw new Error(payload.error || 'Something went wrong. Please try again.');
-        addMessage(payload.answer, 'assistant');
+        addMessage(payload.answer, 'assistant', false, payload.sources || []);
       } catch (error) {
         pending.remove();
         const message = error.name === 'AbortError'

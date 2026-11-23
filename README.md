@@ -6,7 +6,7 @@ A starter project for answering student questions from Zukun Academy's informati
 
 - `knowledge_base/academy_faq.md` - course names supplied so far and a list of academy details the chatbot still needs.
 - `knowledge_base/courses.md` - course topics summarized from the public Zukun course pages, with notes where page titles differ from the supplied course list.
-- `bot.py` - retrieval augmented generation chatbot with command-line and local browser modes. It uses Gemini embeddings to retrieve relevant passages, then asks a Gemini model to answer from those passages.
+- `bot.py` - retrieval augmented generation chatbot with command-line and local browser modes. It combines Gemini embedding similarity with BM25 keyword matching using weighted reciprocal-rank fusion, then asks a Gemini model to answer from the retrieved passages.
 - `web/index.html` - a local website-style preview with the floating chat launcher.
 - `web/widget.html` - the compact chat panel shown in the pop-up.
 - `web/assets/widget-embed.js` - creates the floating launcher and embeds the chat panel on a host website.

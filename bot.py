@@ -5,9 +5,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import math
 import os
+import re
 import sys
 from pathlib import Path
 import threading
+from urllib.parse import urlparse
 import webbrowser
 
 ROOT = Path(__file__).resolve().parent
@@ -122,6 +124,62 @@ def cosine(a, b):
     return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
 
 
+def tokenize(text):
+    return re.findall(r"[a-z0-9]+", text.lower())
+
+
+def bm25_scores(query, chunks, k1=1.5, b=0.75):
+    """Score chunks with BM25 keyword matching without external dependencies."""
+    tokenized = [tokenize(chunk) for chunk in chunks]
+    total = len(tokenized)
+    if not total:
+        return []
+    average_length = sum(map(len, tokenized)) / total or 1.0
+    document_frequency = {}
+    for tokens in tokenized:
+        for token in set(tokens):
+            document_frequency[token] = document_frequency.get(token, 0) + 1
+
+    scores = [0.0] * total
+    for token in tokenize(query):
+        df = document_frequency.get(token, 0)
+        if not df:
+            continue
+        inverse_frequency = math.log(1 + (total - df + 0.5) / (df + 0.5))
+        for position, tokens in enumerate(tokenized):
+            frequency = tokens.count(token)
+            if not frequency:
+                continue
+            length_normalizer = 1 - b + b * len(tokens) / average_length
+            scores[position] += inverse_frequency * (
+                frequency * (k1 + 1) / (frequency + k1 * length_normalizer)
+            )
+    return scores
+
+
+def hybrid_search(query, query_vector, chunks, vectors, limit=5):
+    """Fuse semantic vector and BM25 keyword rankings using weighted RRF."""
+    semantic_order = sorted(
+        range(len(chunks)),
+        key=lambda i: cosine(query_vector, vectors[i]),
+        reverse=True,
+    )
+    lexical_scores = bm25_scores(query, chunks)
+    lexical_order = sorted(
+        (i for i, score in enumerate(lexical_scores) if score > 0),
+        key=lambda i: lexical_scores[i],
+        reverse=True,
+    )
+
+    rrf_constant = 60
+    fused = {}
+    for weight, order in ((0.65, semantic_order), (0.35, lexical_order)):
+        for rank, chunk_index in enumerate(order, start=1):
+            fused[chunk_index] = fused.get(chunk_index, 0.0) + weight / (rrf_constant + rank)
+    ranked_indices = sorted(fused, key=fused.get, reverse=True)[:limit]
+    return [chunks[i] for i in ranked_indices]
+
+
 def is_course_catalog_question(question):
     normalized = " ".join(question.lower().split())
     catalog_phrases = (
@@ -132,21 +190,76 @@ def is_course_catalog_question(question):
     return any(phrase in normalized for phrase in catalog_phrases)
 
 
-def answer(question, index):
+SECTION_SOURCES = {
+    "Academy profile": [("Zukun Academy website", "https://zukun.in/")],
+    "Public contact details": [("Contact Zukun Academy", "https://zukun.in/contact-us/")],
+    "Course names": [
+        ("Python with Data Science", "https://zukun.in/python-with-data-science/"),
+        ("Artificial Intelligence", "https://zukun.in/artificial-intelligence/"),
+        ("Data Analytics", "https://zukun.in/data-analytics/"),
+        ("Python Full Stack Developer", "https://zukun.in/python-full-stack-developer/"),
+        ("Java Full Stack Developer", "https://zukun.in/java-full-stack-developer/"),
+        ("Digital Marketing", "https://zukun.in/digital-marketing/"),
+    ],
+    "Learning format, certificates, and career support": [("Zukun Academy website", "https://zukun.in/")],
+    "Fees, schedules, and admissions": [("Contact Zukun Academy", "https://zukun.in/contact-us/")],
+    "Data Science with AI": [
+        ("Python with Data Science", "https://zukun.in/python-with-data-science/"),
+        ("Artificial Intelligence", "https://zukun.in/artificial-intelligence/"),
+    ],
+    "Data Analyst with AI": [("Data Analytics", "https://zukun.in/data-analytics/")],
+    "Python Full Stack Developer": [("Python Full Stack Developer", "https://zukun.in/python-full-stack-developer/")],
+    "Java Full Stack Developer": [("Java Full Stack Developer", "https://zukun.in/java-full-stack-developer/")],
+    "Digital Marketing": [("Digital Marketing", "https://zukun.in/digital-marketing/")],
+}
+
+SOURCE_TITLES = {url: title for links in SECTION_SOURCES.values() for title, url in links}
+SOURCE_STOP_WORDS = {
+    "a", "about", "an", "and", "are", "at", "can", "do", "does", "for", "from",
+    "give", "how", "i", "in", "is", "it", "me", "of", "on", "or", "please",
+    "tell", "that", "the", "their", "there", "they", "this", "to", "we", "what",
+    "when", "where", "which", "who", "why", "with", "you", "your",
+}
+
+
+def answer_sources(question, chunks):
+    """Return official source links for retrieved chunks that overlap the question."""
+    query_terms = set(tokenize(question)) - SOURCE_STOP_WORDS
+    if not query_terms:
+        return []
+    found = {}
+    for chunk in chunks:
+        if not query_terms.intersection(tokenize(chunk)):
+            continue
+        lines = chunk.splitlines()
+        source_file = lines[0].removeprefix("Source: ") if lines and lines[0].startswith("Source: ") else ""
+        section = lines[1].removeprefix("Section: ") if len(lines) > 1 and lines[1].startswith("Section: ") else ""
+        for title, url in SECTION_SOURCES.get(section, []):
+            found[url] = title
+        for url in re.findall(r"https://[^\s<>\]\[()]+", chunk):
+            url = url.rstrip(".,;:")
+            if urlparse(url).hostname == "zukun.in":
+                found[url] = SOURCE_TITLES.get(url, "Zukun Academy")
+        if source_file == "academy_faq.md" and section == "Course names" and not found:
+            for title, url in SECTION_SOURCES["Course names"]:
+                found[url] = title
+    return [{"title": title, "url": url} for url, title in list(found.items())[:4]]
+
+
+def answer(question, index, include_sources=False):
     query_vector = embed([question], "RETRIEVAL_QUERY")[0]
-    ranked = sorted(
-        ((cosine(query_vector, vector), chunk) for chunk, vector in zip(index["chunks"], index["vectors"])),
-        reverse=True,
-    )[:5]
+    ranked_chunks = hybrid_search(
+        question, query_vector, index["chunks"], index["vectors"], limit=5
+    )
     if is_course_catalog_question(question):
         catalog_chunks = [
             chunk for chunk in index["chunks"]
             if chunk.startswith("Source: courses.md\n")
             or chunk.startswith("Source: academy_faq.md\nSection: Course names\n")
         ]
-        selected_chunks = catalog_chunks or [chunk for _, chunk in ranked]
+        selected_chunks = catalog_chunks or ranked_chunks
     else:
-        selected_chunks = [chunk for _, chunk in ranked]
+        selected_chunks = ranked_chunks
     context = "\n\n---\n\n".join(selected_chunks)
     model = os.environ.get("GEMINI_MODEL", "gemini-3.6-flash")
     system_instruction = (
@@ -161,14 +274,15 @@ def answer(question, index):
         "using one short sentence of at most 12 words per course. Explain technical terms simply. "
         "For other multi-part answers, use a short heading when useful, then brief paragraphs or "
         "bullets with blank lines between sections. Use '## Heading' for headings and '* ' for "
-        "bullets. Avoid dense blocks of text. If the context does not contain an answer, do not "
-        "reply only that details are unavailable or send the student to contact Zukun. Give a useful "
-        "temporary sample answer based on common academy practice, clearly label it 'Temporary sample — "
-        "not confirmed by Zukun'. Keep confirmed facts separate from the sample. Never invent real-"
-        "sounding prices, dates, durations, schedules, policies, or guarantees; use clear placeholders "
-        "such as [fee], [duration], or [next batch date] for missing specifics. If the question asks "
-        "for a general explanation (for example, what a course subject means), answer from general "
-        "knowledge without claiming Zukun teaches a specific unlisted module. Use plain text formatting, without Markdown emphasis "
+        "bullets. Avoid dense blocks of text. Answer every understandable question. If asked a general "
+        "question, answer it directly using your general knowledge. For Zukun-specific facts, use the "
+        "context as the source of truth. If a requested Zukun fact is absent, do not stop at 'I don't "
+        "know', 'no information available', or contact details: give the most useful practical sample "
+        "answer you can, clearly label it 'Temporary sample — not confirmed by Zukun', and say what "
+        "needs confirmation. Keep verified facts separate from the sample. Never make up exact fees, "
+        "dates, durations, schedules, policies, or guarantees; use placeholders such as [fee], "
+        "[duration], or [next batch date] for those specifics. General explanations of subjects may "
+        "use your general knowledge, but do not claim Zukun teaches unlisted modules. Use plain text formatting, without Markdown emphasis "
         "or Markdown links; show URLs as plain text. When the supplied course "
         "list and a website page use different course titles, explain the mismatch and do not claim "
         "that separate pages are one confirmed syllabus. The Data Analytics page does not confirm "
@@ -192,7 +306,10 @@ def answer(question, index):
         raise
     except Exception as exc:
         raise RuntimeError(f"Gemini answer request failed: {exc}") from exc
-    return (interaction.output_text or "I could not produce an answer. Please contact academy support.").strip()
+    reply = (interaction.output_text or "I could not produce an answer. Please contact academy support.").strip()
+    if include_sources:
+        return {"answer": reply, "sources": answer_sources(question, selected_chunks)}
+    return reply
 
 
 class ChatHandler(BaseHTTPRequestHandler):
@@ -263,8 +380,8 @@ class ChatHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            reply = answer(question, self.server.rag_index)
-            self.send_json(200, {"answer": reply})
+            reply = answer(question, self.server.rag_index, include_sources=True)
+            self.send_json(200, reply)
         except Exception as exc:
             print(f"Gemini request failed: {exc}", file=sys.stderr)
             message = str(exc).strip() or exc.__class__.__name__
